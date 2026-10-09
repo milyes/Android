@@ -129,6 +129,18 @@ class AudioRepository(private val db: AppDatabase) {
                     category = "DK",
                     commandText = "ls -la /vendor/lib64/*dk.samsung.so",
                     description = "Inspecte la présence des bibliothèques natives lib_vnd_client.dk.samsung.so."
+                ),
+                CommandMacro(
+                    name = "LANCE_BIN.HTML Runner",
+                    category = "SCRIPT",
+                    commandText = "termux-open ./storage/LANCE_BIN.HTML || am start -a android.intent.action.VIEW -d 'file:///data/user/0/com.aistudio.ghostsync.kmrqzx/files/storage/LANCE_BIN.HTML'",
+                    description = "Exécute et ouvre l'interface de lancement LANCE_BIN.HTML pour orchestrer les scripts et captures."
+                ),
+                CommandMacro(
+                    name = "Upload LANCE_BIN to Drive",
+                    category = "RCLONE",
+                    commandText = "rclone copy ./storage/LANCE_BIN.HTML gdrive:/Z-CORE/ --drive-chunk-size 64M -v",
+                    description = "Téléverse le fichier LANCE_BIN.HTML vers le cloud Google Drive Z-CORE."
                 )
             )
             db.commandMacroDao().insertAll(initialMacros)

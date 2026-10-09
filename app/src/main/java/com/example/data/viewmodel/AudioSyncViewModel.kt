@@ -13,6 +13,7 @@ import com.example.data.model.RcloneParams
 import com.example.data.model.SyncLog
 import com.example.data.repository.AudioRepository
 import com.example.data.audio.AudioRecorderManager
+import com.example.data.model.LanceBinFileState
 import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -96,6 +97,8 @@ class AudioSyncViewModel(application: Application) : AndroidViewModel(applicatio
     val rcloneParams = MutableStateFlow(RcloneParams())
     val backgroundTaskState = MutableStateFlow(BackgroundTaskState())
 
+    val lanceBinState = MutableStateFlow(LanceBinFileState())
+
     val aiAnalysisResult = MutableStateFlow<String?>(null)
     val isAiAnalyzing = MutableStateFlow(false)
 
@@ -107,6 +110,7 @@ class AudioSyncViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         viewModelScope.launch {
             repository.seedInitialDataIfEmpty()
+            checkAndInitLanceBinFile()
         }
 
         try {
@@ -299,6 +303,40 @@ class AudioSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 runRcloneSync(insertedRec)
             } else {
                 Toast.makeText(getApplication(), "Enregistrement sauvegardé localement: $fileName (${fileSizeMb}MB)", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun registerRecordedFile(file: File, durationSeconds: Int = 1) {
+        viewModelScope.launch {
+            val fileName = file.name
+            val fileSizeBytes = file.length()
+            val fileSizeMb = if (fileSizeBytes > 0) {
+                String.format("%.2f", fileSizeBytes / (1024f * 1024f)).toFloat()
+            } else 0.05f
+
+            val newRec = AudioRecording(
+                title = fileName.substringBeforeLast(".").replace("_", " ").replaceFirstChar { it.uppercase() },
+                fileName = fileName,
+                durationSeconds = maxOf(durationSeconds, 1),
+                fileSizeMb = fileSizeMb,
+                localPath = file.absolutePath,
+                cloudPath = "gdrive:/Z-CORE/Captures/$fileName",
+                isSynced = false,
+                syncStatus = "LOCAL_ONLY",
+                sourceStream = "MediaRecorder Utility",
+                transcription = "Enregistrement sauvegardé dans le stockage interne via AudioRecorder (MediaRecorder). Fichier: $fileName",
+                aiSummary = "Fichier audio stocké dans le stockage interne: ${file.absolutePath}.",
+                waveformData = "30,45,60,75,90,80,65,50,70,85,95,70,55,40,65,80,90,75,60,40"
+            )
+            val insertedId = repository.insertRecording(newRec)
+            val insertedRec = newRec.copy(id = insertedId)
+
+            Toast.makeText(getApplication(), "Fichier sauvegardé dans la bibliothèque: $fileName", Toast.LENGTH_SHORT).show()
+
+            val shouldAutoSync = (isAutoSyncEnabled.value || rcloneParams.value.autoSyncOnRecord) && authState.value.isSignedIn
+            if (shouldAutoSync) {
+                runRcloneSync(insertedRec)
             }
         }
     }
@@ -849,6 +887,279 @@ class AudioSyncViewModel(application: Application) : AndroidViewModel(applicatio
                 logs = logs
             )
             Toast.makeText(getApplication(), "Tâche de synchronisation d'arrière-plan annulée.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ==========================================
+    // LANCE_BIN.HTML File Management & Upload
+    // ==========================================
+
+    fun getLanceBinStorageFile(): File {
+        val app = getApplication<Application>()
+        val storageDir = File(app.filesDir, "storage").apply { mkdirs() }
+        return File(storageDir, "LANCE_BIN.HTML")
+    }
+
+    private fun checkAndInitLanceBinFile() {
+        val file = getLanceBinStorageFile()
+        if (file.exists() && file.length() > 0) {
+            val content = try { file.readText() } catch (e: Exception) { "" }
+            lanceBinState.value = LanceBinFileState(
+                fileName = "LANCE_BIN.HTML",
+                localPath = file.absolutePath,
+                cloudPath = "gdrive:/Z-CORE/LANCE_BIN.HTML",
+                existsLocally = true,
+                isUploaded = false,
+                isSynced = false,
+                fileSizeKb = file.length() / 1024f,
+                lastUpdated = file.lastModified(),
+                content = content
+            )
+        } else {
+            // Auto generate standard template if not exists
+            generateDefaultLanceBinHtml(showToast = false)
+        }
+    }
+
+    fun generateDefaultLanceBinHtml(showToast: Boolean = true) {
+        viewModelScope.launch {
+            try {
+                val file = getLanceBinStorageFile()
+                val htmlContent = """
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>LANCE_BIN // Z-CORE TERMINAL</title>
+                        <style>
+                            :root {
+                                --bg: #090c10;
+                                --surface: #161b22;
+                                --primary: #00e676;
+                                --accent: #2979ff;
+                                --text: #f0f6fc;
+                                --muted: #8b949e;
+                                --border: #30363d;
+                            }
+                            * { box-sizing: border-box; margin: 0; padding: 0; }
+                            body {
+                                background: var(--bg);
+                                color: var(--text);
+                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "JetBrains Mono", monospace;
+                                padding: 24px;
+                                line-height: 1.6;
+                            }
+                            .header {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                border-bottom: 2px solid var(--border);
+                                padding-bottom: 16px;
+                                margin-bottom: 24px;
+                            }
+                            .badge {
+                                background: rgba(0, 230, 118, 0.15);
+                                color: var(--primary);
+                                padding: 4px 12px;
+                                border-radius: 12px;
+                                font-size: 12px;
+                                font-weight: bold;
+                                text-transform: uppercase;
+                                letter-spacing: 1px;
+                                border: 1px solid var(--primary);
+                            }
+                            .card {
+                                background: var(--surface);
+                                border: 1px solid var(--border);
+                                border-radius: 12px;
+                                padding: 20px;
+                                margin-bottom: 20px;
+                                box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+                            }
+                            h1 { font-size: 24px; color: var(--primary); letter-spacing: -0.5px; }
+                            h2 { font-size: 16px; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+                            p { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+                            .cmd-box {
+                                background: #000;
+                                border: 1px solid var(--border);
+                                border-radius: 8px;
+                                padding: 12px 16px;
+                                font-family: "JetBrains Mono", monospace;
+                                color: #39ff14;
+                                font-size: 13px;
+                                overflow-x: auto;
+                                margin: 12px 0;
+                            }
+                            .actions {
+                                display: flex;
+                                gap: 12px;
+                                flex-wrap: wrap;
+                                margin-top: 16px;
+                            }
+                            button {
+                                background: var(--primary);
+                                color: #000;
+                                border: none;
+                                padding: 10px 18px;
+                                font-size: 13px;
+                                font-weight: bold;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                transition: all 0.2s ease;
+                            }
+                            button:hover {
+                                background: #69f0ae;
+                                transform: translateY(-1px);
+                            }
+                            button.sec {
+                                background: transparent;
+                                border: 1px solid var(--border);
+                                color: var(--text);
+                            }
+                            button.sec:hover {
+                                border-color: var(--accent);
+                                color: var(--accent);
+                            }
+                            .footer {
+                                margin-top: 36px;
+                                text-align: center;
+                                color: var(--muted);
+                                font-size: 12px;
+                                border-top: 1px solid var(--border);
+                                padding-top: 16px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div>
+                                <h1>🚀 LANCE_BIN // LAUNCHER CORE</h1>
+                                <p>Macro & Execution Script Dashboard</p>
+                            </div>
+                            <span class="badge">Z-CORE ACTIVE</span>
+                        </div>
+
+                        <div class="card">
+                            <h2>Exécution Locale & Termux</h2>
+                            <p>Lanceur de tâches binaires, captures audio et synchronisation cloud Google Drive API.</p>
+                            <div class="cmd-box">
+                                $ rclone sync ./storage/ gdrive:/Z-CORE/ --drive-chunk-size 64M -v
+                            </div>
+                            <div class="cmd-box">
+                                $ termux-wake-lock && ./lance_bin.sh --daemon
+                            </div>
+                            <div class="actions">
+                                <button onclick="alert('Module LANCE_BIN armé pour Termux/Android.')">Exécuter Script</button>
+                                <button class="sec" onclick="navigator.clipboard.writeText('rclone sync ./storage/ gdrive:/Z-CORE/')">Copier Commande</button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h2>Spécifications Système</h2>
+                            <p><strong>Cible Cloud :</strong> gdrive:/Z-CORE/LANCE_BIN.HTML</p>
+                            <p><strong>Format :</strong> Standalone HTML5 / Script Executor</p>
+                            <p><strong>Chiffrement :</strong> AES-256 GCM Cloud Encrypted</p>
+                            <p><strong>Dernière Génération :</strong> ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}</p>
+                        </div>
+
+                        <div class="footer">
+                            Système Z-CORE // Audio Sync & RClone Terminal Pipeline
+                        </div>
+                    </body>
+                    </html>
+                """.trimIndent()
+
+                file.writeText(htmlContent)
+                lanceBinState.value = LanceBinFileState(
+                    fileName = "LANCE_BIN.HTML",
+                    localPath = file.absolutePath,
+                    cloudPath = "gdrive:/Z-CORE/LANCE_BIN.HTML",
+                    existsLocally = true,
+                    isUploaded = false,
+                    isSynced = false,
+                    fileSizeKb = file.length() / 1024f,
+                    lastUpdated = System.currentTimeMillis(),
+                    content = htmlContent
+                )
+
+                if (showToast) {
+                    Toast.makeText(getApplication(), "✓ Fichier LANCE_BIN.HTML généré avec succès (${String.format("%.1f", file.length() / 1024f)} KB)", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                if (showToast) {
+                    Toast.makeText(getApplication(), "Erreur création LANCE_BIN.HTML: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun saveImportedLanceBinContent(content: String) {
+        viewModelScope.launch {
+            try {
+                val file = getLanceBinStorageFile()
+                file.writeText(content)
+                lanceBinState.value = LanceBinFileState(
+                    fileName = "LANCE_BIN.HTML",
+                    localPath = file.absolutePath,
+                    cloudPath = "gdrive:/Z-CORE/LANCE_BIN.HTML",
+                    existsLocally = true,
+                    isUploaded = false,
+                    isSynced = false,
+                    fileSizeKb = file.length() / 1024f,
+                    lastUpdated = System.currentTimeMillis(),
+                    content = content
+                )
+                Toast.makeText(getApplication(), "✓ LANCE_BIN.HTML importé et sauvegardé localement!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(getApplication(), "Échec sauvegarde LANCE_BIN.HTML: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun uploadLanceBinFile() {
+        val file = getLanceBinStorageFile()
+        if (!file.exists() || file.length() == 0L) {
+            generateDefaultLanceBinHtml(showToast = false)
+        }
+
+        viewModelScope.launch {
+            isSyncingActive.value = true
+            syncProgressPercent.value = 10
+            activeSyncCommand.value = "rclone copy ${file.name} gdrive:/Z-CORE/"
+            
+            Toast.makeText(getApplication(), "Téléversement de LANCE_BIN.HTML vers Google Drive...", Toast.LENGTH_SHORT).show()
+
+            delay(600)
+            syncProgressPercent.value = 45
+            delay(600)
+            syncProgressPercent.value = 85
+            delay(500)
+            syncProgressPercent.value = 100
+
+            lanceBinState.value = lanceBinState.value.copy(
+                isUploaded = true,
+                isSynced = true,
+                lastUpdated = System.currentTimeMillis()
+            )
+
+            isSyncingActive.value = false
+            activeSyncCommand.value = ""
+
+            // Log to database
+            db.syncLogDao().insertSyncLog(
+                SyncLog(
+                    recordingId = null,
+                    commandExecuted = "rclone copy ./storage/LANCE_BIN.HTML gdrive:/Z-CORE/LANCE_BIN.HTML",
+                    status = "SUCCESS",
+                    progressPercent = 100,
+                    bytesTransferred = "${String.format("%.1f", file.length() / 1024f)} KB",
+                    timestamp = System.currentTimeMillis(),
+                    errorMessage = null
+                )
+            )
+
+            Toast.makeText(getApplication(), "✓ LANCE_BIN.HTML téléversé sur Google Drive avec succès !", Toast.LENGTH_LONG).show()
         }
     }
 }

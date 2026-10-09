@@ -27,6 +27,7 @@ import com.example.data.model.AudioRecording
 import com.example.data.viewmodel.AudioSyncViewModel
 import com.example.data.viewmodel.NavigationTab
 import com.example.ui.components.AudioPlayerCard
+import com.example.ui.components.AudioRecorderComponent
 import com.example.ui.components.DecibelMeterIndicator
 import com.example.ui.components.LiveMicrophoneSpectrumVisualizer
 import com.example.ui.components.RecordingToggleButton
@@ -52,6 +53,7 @@ fun RecorderVaultScreen(
     val micPermissionState = rememberPermissionState(permission = Manifest.permission.RECORD_AUDIO)
 
     var customNameInput by remember { mutableStateOf("enregistrement_ghost_vocal") }
+    var recorderMode by remember { mutableStateOf("COMPONENT") }
 
     val latestAmplitude = remember(recorderState.liveAmplitudes) {
         recorderState.liveAmplitudes.lastOrNull() ?: 0
@@ -63,6 +65,50 @@ fun RecorderVaultScreen(
             .padding(16.dp)
             .testTag("recorder_vault_screen")
     ) {
+        // --- Mode Selector Row ---
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp)
+                .testTag("recorder_mode_segmented_row")
+        ) {
+            SegmentedButton(
+                selected = recorderMode == "COMPONENT",
+                onClick = { recorderMode = "COMPONENT" },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            ) {
+                Text("Composant MediaRecorder", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            SegmentedButton(
+                selected = recorderMode == "STUDIO",
+                onClick = { recorderMode = "STUDIO" },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.Radio,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            ) {
+                Text("Studio Z-CORE", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        if (recorderMode == "COMPONENT") {
+            AudioRecorderComponent(
+                onRecordingSaved = { file ->
+                    viewModel.registerRecordedFile(file)
+                }
+            )
+        } else {
         // --- 1. Top Recording Studio Card ---
         Card(
             modifier = Modifier
@@ -337,6 +383,7 @@ fun RecorderVaultScreen(
                     fontSize = 11.sp
                 )
             }
+        }
         }
 
         Spacer(modifier = Modifier.height(18.dp))

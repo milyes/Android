@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CommandMacro
 import com.example.data.viewmodel.AudioSyncViewModel
+import com.example.ui.components.LanceBinUploadCard
 import com.example.data.viewmodel.NavigationTab
 import com.example.ui.theme.TextSecondary
 
@@ -197,6 +198,11 @@ fun TermuxMacroScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- LANCE_BIN.HTML Upload & Macro Controller Card ---
+            LanceBinUploadCard(viewModel = viewModel)
 
             Spacer(modifier = Modifier.height(12.dp))
 

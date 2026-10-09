@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.CommandMacro
 import com.example.data.viewmodel.AudioSyncViewModel
 import com.example.data.viewmodel.NavigationTab
+import com.example.ui.components.LanceBinUploadCard
 import com.example.ui.theme.EmeraldSynced
 import com.example.ui.theme.TextSecondary
 
@@ -205,7 +206,7 @@ fun DeviceScreen(
 
         // --- Section Contents ---
         when (selectedSection) {
-            0 -> IdentifiersSection(context)
+            0 -> IdentifiersSection(viewModel, context)
             1 -> HardwareSection()
             2 -> SystemSecuritySection(context)
             3 -> NativeLibrariesSection(libSearchQuery, { libSearchQuery = it }, filteredLibs, context)
@@ -230,11 +231,15 @@ private fun SpecPill(label: String, value: String) {
 }
 
 @Composable
-private fun IdentifiersSection(context: Context) {
+private fun IdentifiersSection(viewModel: AudioSyncViewModel, context: Context) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().testTag("identifiers_section_list")
     ) {
+        item {
+            LanceBinUploadCard(viewModel = viewModel)
+        }
+
         item {
             InfoCard(
                 title = "Identifiants Cibles",

@@ -156,25 +156,48 @@ fun RecordingsListScreen(
                             )
                         }
 
-                        // Batch Sync All Pending Button
-                        if (localCount > 0) {
-                            FilledTonalButton(
-                                onClick = { viewModel.batchSyncAllPending() },
-                                enabled = !isGlobalSyncing,
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.testTag("batch_sync_btn")
+                        // Action Buttons: LANCE_BIN.HTML & Batch Sync
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.setTab(NavigationTab.CLOUD_SYNC) },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.testTag("top_lance_bin_btn")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.CloudUpload,
-                                    contentDescription = null,
+                                    imageVector = Icons.Filled.Code,
+                                    contentDescription = "LANCE_BIN.HTML",
                                     modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (isGlobalSyncing) "Syncing..." else "Tout sync ($localCount)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = "LANCE_BIN",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
+                            }
+
+                            if (localCount > 0) {
+                                FilledTonalButton(
+                                    onClick = { viewModel.batchSyncAllPending() },
+                                    enabled = !isGlobalSyncing,
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.testTag("batch_sync_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CloudUpload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isGlobalSyncing) "Syncing..." else "Sync ($localCount)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
                     }
